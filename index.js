@@ -2,11 +2,19 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
+const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 const PORT = 3001;
 
+const corsOptions = {
+    origin: 'http://localhost:3000',
+    methods: ['GET', 'POST', 'PUT'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 const SECRET_KEY = process.env.SECRET_KEY;
@@ -20,7 +28,7 @@ function authenticate(req, res, next) {
     if (!token) return res.status(401).send('Access denied. No token provided.');
 
     try {
-        const decoded = jwt.verify(token, SECRET_KEY);
+        const decoded = jwt.verify(token.replace('Bearer ', ''), SECRET_KEY);
         req.user = decoded;
         next();
     } catch (err) {
@@ -72,16 +80,20 @@ app.post('/joke/:id/approve', authenticate, async (req, res) => {
     const { approve } = req.body;
 
     try {
+        console.log(`Fetching joke from: ${SUBMIT_JOKES_SERVICE_URL}/jokes/${jokeId}`);
         const response = await axios.get(`${SUBMIT_JOKES_SERVICE_URL}/jokes/${jokeId}`);
         const joke = response.data;
+        console.log(`Posting joke to: ${DELIVER_JOKES_SERVICE_URL}/joke`);
 
         if (approve) {
-            await axios.post(`${DELIVER_JOKES_SERVICE_URL}/jokes`, joke);
+            await axios.post(`${DELIVER_JOKES_SERVICE_URL}/joke`, joke);
         }
 
+        console.log(`Deleting joke from: ${SUBMIT_JOKES_SERVICE_URL}/jokes/${jokeId}`);
         await axios.delete(`${SUBMIT_JOKES_SERVICE_URL}/jokes/${jokeId}`);
         res.send({ success: true });
     } catch (error) {
+        console.log("error", error);
         res.status(500).send('Error approving/rejecting joke.');
     }
 });
